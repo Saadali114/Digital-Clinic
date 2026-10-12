@@ -1,110 +1,99 @@
-# MediConnect — Proposed System Architecture
+# MediConnect — System Architecture Blueprint
 
-> **Document Status**: Proposed Blueprint (Unverified until Phase 1+ Implementation)  
+> **Document Status**: Finalized Architecture (Frontend & Dedicated Express Backend Separation)  
 > **Last Updated**: 2026-10-12  
-> **Phase**: Phase 0 — Foundation & Documentation
+> **Phase**: Phase 1 — Application Setup, Database, Authentication & Roles
 
 ---
 
-## 1. Architectural Overview
+## 1. Architectural Overview & Monorepo Strategy
 
-MediConnect is designed as a modular, full-stack web application adhering to clean architecture principles. It separates client-facing presentation, application routing, core business domain logic, and persistent storage into distinct layers.
+MediConnect uses a clean monorepo architecture within a single Git repository, dividing responsibilities strictly between a client-facing Next.js frontend and a dedicated Node.js Express backend.
 
 ```
-+-------------------------------------------------------------------------+
-|                           Client Browser                                |
-|  - Patient Portal (Search, Book, Consult, AI Chat)                     |
-|  - Doctor Workspace (Schedule, Consultations, Clinical Notes)          |
-|  - Admin Dashboard (Verification, User & Catalog Management)            |
-+------------------------------------+------------------------------------+
-                                     | HTTPS / WebSockets
-+------------------------------------v------------------------------------+
-|                         Next.js App Server                              |
-|  +-------------------------------------------------------------------+  |
-|  | Middleware: Auth Session Validation & RBAC Guard                  |  |
-|  +-------------------------------------------------------------------+  |
-|  +--------------------------------+ +--------------------------------+  |
-|  | Server Components (RSC)        | | Route Handlers (API / Streaming)|  |
-|  | - SEO-driven Encyclopedia      | | - /api/auth, /api/appointments |  |
-|  | - Doctor Public Profiles       | | - /api/ai/chat (Streaming)     |  |
-|  | - Pre-rendered Dashboard Shells| | - /api/consultations/token     |  |
-|  +--------------------------------+ +--------------------------------+  |
-+------------------+----------------------------------+-------------------+
-                   |                                  |
-+------------------v------------------+ +-------------v-------------------+
-|          Application Domain         | |      Realtime Signaling Hub     |
-|  - Appointment Booking Engine       | |  - WebRTC Peer Connection       |
-|  - Doctor Schedule Generator        | |  - Active Room State Tracking   |
-|  - AI Guardrail & Triage Classifier | |  - In-call Ephemeral Messaging  |
-+------------------+------------------+ +---------------------------------+
-                   |
-+------------------v------------------------------------------------------+
-|                     Data & External Integration Layer                   |
-|  +-------------------------------+  +--------------------------------+  |
-|  | PostgreSQL (Prisma ORM)       |  | External Service Gateways      |  |
-|  | - Users, Profiles, RBAC       |  | - LLM API (OpenAI/Claude/Gemini)  |
-|  | - Appointments, Availability  |  | - Email/SMS Notification API   |  |
-|  | - Encrypted Consultation Notes|  | - WebRTC Media/STUN/TURN       |  |
-|  | - Immutable Audit Log Table   |  |                                |  |
-|  +-------------------------------+  +--------------------------------+  |
-+-------------------------------------------------------------------------+
++-----------------------------------------------------------------------------------+
+|                           CLIENT TIER (Next.js App Router)                         |
+|                               Port: 3000 (Default)                                |
+|  - Presentation UI (Server & Client Components, Vanilla CSS Design Tokens)        |
+|  - Route Guards & Client-side State Navigation                                    |
+|  - Centralized API Client calling Backend via NEXT_PUBLIC_API_URL                 |
+|  * Strictly NO direct database connection; NO backend business logic in Next.js * |
++-----------------------------------------+-----------------------------------------+
+                                          | HTTPS / HTTP REST (/api/v1/*)
+                                          | Credentials (Cookies) + JSON
++-----------------------------------------v-----------------------------------------+
+|                        APPLICATION SERVER (Node.js + Express)                     |
+|                               Port: 5000 (Default)                                |
+|  +-----------------------------------------------------------------------------+  |
+|  | Global Security Middleware: Helmet, CORS (Explicit Allowlist), Rate Limit  |  |
+|  +-----------------------------------------------------------------------------+  |
+|  +-----------------------------------------------------------------------------+  |
+|  | Authentication & RBAC Middleware: Session Cookie Validation, Role Assertions|  |
+|  +-----------------------------------------------------------------------------+  |
+|  +-----------------------------------------------------------------------------+  |
+|  | Request Validation: Zod Schemas across all incoming endpoints               |  |
+|  +-----------------------------------------------------------------------------+  |
+|  +--------------------------------+ +------------------------------------------+  |
+|  | Core Controllers & Modules     | | Centralized Error Handler & Logger       |  |
+|  | - Auth Module (/api/v1/auth)   | | - Domain errors (400, 401, 403, 404)     |  |
+|  | - Health Check (/api/v1/health)| | - Database connection handling (503)     |  |
+|  | - Users Module (/api/v1/users) | | - Unhandled exceptions (500)             |  |
+|  +--------------------------------+ +------------------------------------------+  |
++-----------------------------------------+-----------------------------------------+
+                                          | Prisma ORM (TCP Pool)
++-----------------------------------------v-----------------------------------------+
+|                             PERSISTENCE TIER (PostgreSQL)                         |
+|  - Port: 5432                                                                     |
+|  - Managed exclusively by backend/prisma/schema.prisma                            |
+|  - Models: User, PatientProfile, DoctorProfile, DoctorCredential                  |
++-----------------------------------------------------------------------------------+
 ```
 
 ---
 
-## 2. Core Subsystems and Responsibilities
+## 2. Repository Layout & Separation of Concerns
 
-### 2.1 Identity and Access Management (IAM)
-- **Authentication**: Email/password credentials with Argon2/bcrypt hashing, optional OAuth providers, secure HTTP-only session cookies.
-- **Role-Based Access Control (RBAC)**: Enforced via Next.js middleware and API route handlers. Roles: `PATIENT`, `DOCTOR`, `ADMIN`, `SUPER_ADMIN`.
-- **Horizontal Access Guarding**: Strict identity-ownership checking ensures users can only access records specifically assigned to them.
-
-### 2.2 Doctor Availability & Scheduling Engine
-- **Slot Generator**: Computes available consultation slots based on recurring doctor weekly templates, excluding past appointments and doctor leave intervals.
-- **Concurrency & Concurrency Locking**: Employs transactional isolation (Serializable / row-level locks) to prevent double-booking identical time slots.
-- **Lifecycle Machine**: Enforces valid state transitions:
-  `REQUESTED` -> `CONFIRMED` -> `IN_PROGRESS` -> `COMPLETED` (or `CANCELLED` / `NO_SHOW`).
-
-### 2.3 Virtual Consultation & Telehealth Subsystem
-- **Signaling Service**: Coordinates WebRTC session descriptions (SDP offer/answer) and ICE candidates between patient and doctor.
-- **Waiting Room**: Authenticates both parties, confirms camera/mic permissions, and only admits the patient when the doctor initializes the session.
-- **Peer-to-Peer Media**: Media streams flow directly between peers with DTLS-SRTP encryption, maintaining clinical confidentiality without central media recording.
-- **Clinical Records**: Doctors record diagnoses and prescription details during the session, saving them directly to the patient's record on call completion.
-
-### 2.4 Medical Knowledge Base
-- **Disease Catalog**: Structured disease profiles containing clinical descriptions, common symptoms, causes, preventative actions, and red-flag escalation triggers.
-- **Medicine Reference**: Validated pharmaceutical index detailing generic compounds, brand names, therapeutic classes, dosage parameters, contraindications, and potential adverse interactions.
-- **SEO & Performance**: Server-rendered with semantic HTML and JSON-LD schema for search engine discoverability.
-
-### 2.5 AI Health Assistant & Clinical Triage Engine
-- **Conversational Triage**: Guides patients through structured symptom exploration to recommend appropriate medical specialties.
-- **Safety Boundary Pipeline**:
-  1. *Input Sanitization*: Strips personally identifiable information.
-  2. *Emergency Keyword & Heuristic Detection*: Detects acute emergencies (e.g., myocardial infarction, stroke, severe trauma) and triggers emergency mode.
-  3. *Prompt Shielding*: Enforces system prompts forbidding definitive diagnosis and drug prescription.
-  4. *Response Verification*: Validates disclaimer inclusion before rendering to client.
-
-### 2.6 Audit & Compliance Subsystem
-- **Audit Logging**: Any query or mutation touching sensitive patient data (profiles, medical histories, consultation notes) writes an immutable record to the `AuditLog` table.
-- **Data Minimization**: Minimizes stored patient information and excludes private health data from application logs and analytics.
-
----
-
-## 3. Communication Patterns
-
-| Channel | Protocol | Usage |
-|---|---|---|
-| **Client-Server REST** | HTTPS (JSON) | Standard queries, bookings, profile updates, and admin actions |
-| **AI Chat Streaming** | HTTPS (Server-Sent Events) | Real-time token streaming for AI assistant responses |
-| **Realtime Signaling** | WSS (WebSockets) | WebRTC room coordination and waiting room presence updates |
-| **Video/Audio Media** | WebRTC (SRTP/UDP) | Encrypted peer-to-peer audio and video transmission |
-| **Database Access** | TCP (PostgreSQL Connection Pooling) | Prisma ORM queries with transaction support |
+```
+Digital-Clinic/
+├── frontend/                     # Next.js App Router presentation tier
+│   ├── src/
+│   │   ├── app/                  # Next.js App Router pages (/login, /register, etc.)
+│   │   ├── components/           # UI components, layout header/footer
+│   │   ├── lib/                  # Centralized backend API client (apiClient.ts)
+│   │   ├── styles/               # Vanilla CSS design tokens & global stylesheets
+│   │   └── types/                # Frontend contracts & view model interfaces
+│   ├── public/                   # Static assets
+│   ├── package.json              # Frontend scripts & dependencies
+│   └── .env.example              # NEXT_PUBLIC_API_URL template
+├── backend/                      # Node.js + Express REST API tier
+│   ├── src/
+│   │   ├── config/               # Environment validation (Zod) & configuration
+│   │   ├── middleware/           # Auth, RBAC, error handling, rate limiting
+│   │   ├── modules/              # Feature modules (auth, users, health)
+│   │   ├── routes/               # Express router mounting /api/v1/*
+│   │   ├── services/             # Core business logic & database services
+│   │   ├── utils/                # Password hashing, JWT signing, response helpers
+│   │   ├── app.ts                # Express application configuration
+│   │   └── server.ts             # Server bootstrap & port listener
+│   ├── prisma/
+│   │   └── schema.prisma         # PostgreSQL schema definition & migrations
+│   ├── tests/                    # Backend unit & integration test suites
+│   ├── package.json              # Backend scripts & dependencies
+│   └── .env.example              # DATABASE_URL, PORT, CORS_ORIGIN, AUTH_SECRET
+├── docs/                         # Architectural & specification documents
+├── BRAIN.md                      # Primary project brain & source of truth
+├── PROJECT_STATUS.md             # Quantitative progress tracker
+├── CHANGELOG.md                  # Chronological implementation logs
+├── README.md                     # Monorepo setup & development guide
+├── .gitignore                    # Root ignore rules for node_modules, build & env
+└── package.json                  # Root runner scripts (npm run dev, npm test)
+```
 
 ---
 
-## 4. Architectural Quality Attributes
+## 3. Communication Patterns & Contracts
 
-1. **Confidentiality & Privacy**: End-to-end media encryption, TLS 1.3 everywhere, strict RBAC, and zero client-side caching of cross-patient records.
-2. **Reliability & Consistency**: Database ACID guarantees prevent double-booking; resilient error handling surfaces informative feedback to users without exposing stack traces.
-3. **Usability & Aesthetics**: Clean clinical aesthetic using cohesive vanilla CSS variables, responsive design across mobile/desktop, and WCAG AA accessibility compliance.
-4. **Maintainability**: Clear folder boundaries, isolated single-responsibility components, and 100% TypeScript type coverage.
+1. **API Protocol**: JSON over HTTP/HTTPS, versioned strictly under `/api/v1`.
+2. **CORS Security**: Backend configures CORS with `origin: process.env.CORS_ORIGIN` (e.g., `http://localhost:3000`) and `credentials: true`. Wildcard origins (`*`) are prohibited when credentials are enabled.
+3. **Session Management**: Express sets HTTP-only, SameSite cookies on authentication (`mediconnect_session`). The Next.js frontend forwards these credentials via `credentials: 'include'` on client fetches.
+4. **Health Check Specification**: `GET /api/v1/health` verifies Express process health and attempts a lightweight database ping, returning separate statuses for `api` and `database`.

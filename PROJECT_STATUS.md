@@ -1,17 +1,17 @@
 # MediConnect — Project Progress Tracker
 
 > **Last Updated**: 2026-10-12  
-> **Tracker Version**: 1.0.0 (Phase 0 Baseline)
+> **Tracker Version**: 1.3.0 (Database Migrations Applied & Live PostgreSQL Verified)
 
 ---
 
 ## Overall Status
 
-- **Current Phase**: Phase 0 — Documentation and Project Foundation
-- **Current Milestone**: Milestone 0.1 — Architectural Blueprint & Specification System
-- **Overall Completion Percentage**: **11.4%** (4 of 35 verified feature units completed)
-- **Calculation Formula**: `(Completed Verified Features / Total Defined Features) * 100` = `(4 / 35) * 100` = `11.4%`
-- **Current Blockers**: None
+- **Current Phase**: Phase 1 — Monorepo Setup, Frontend, Backend, Database, Authentication & Roles
+- **Current Milestone**: Milestone 1.3 — Database Migration Applied (`20261012142151_init`) & Live PostgreSQL Verified
+- **Overall Completion Percentage**: **31.4%** (11 of 35 verified feature units completed)
+- **Calculation Formula**: `(Completed Verified Features / Total Defined Features) * 100` = `(11 / 35) * 100` = `31.4%`
+- **Current Blockers**: None. (DB-01 Resolved: Supabase PostgreSQL connected and initial migration applied).
 
 ---
 
@@ -19,16 +19,17 @@
 
 | Feature | Status | Implementation Details | Tests | Pending Work |
 |---|---|---|---|---|
-| **Project Master Specification (`BRAIN.md`)** | COMPLETED | Comprehensive vision, data architecture, security rules, working standards | Manual file content & schema validation | Continuous update as future phases are implemented |
-| **Progress Tracking System (`PROJECT_STATUS.md`)** | COMPLETED | Real-time state tracker with mathematical metrics, phase checklists, bug table | Structure verified against requirements | Regular state updates per session |
-| **Implementation Log (`CHANGELOG.md`)** | COMPLETED | Standardized session logging schema initialized with initial entry | Format verified against Phase 0 execution | Incremental appending after future implementation |
-| **Project Documentation & Blueprints (`docs/*`)** | COMPLETED | `ARCHITECTURE.md`, `DATABASE.md`, `API.md` defined with proposed contracts | Cross-reference integrity check | Verification against code implementation in Phase 1+ |
-| **Repository Setup & README (`README.md`)** | COMPLETED | Workspace root git alignment, project roadmap, setup guidance | Directory & git status verification | Update commands once framework is bootstrapped in Phase 1 |
-| **Framework & App Bootstrap** | NOT STARTED | Proposed: Next.js (App Router, TypeScript) | None | Full initialization in Phase 1 |
-| **Design System & Global CSS Tokens** | NOT STARTED | Proposed: Vanilla CSS tokens, dark/light clinical color palette | None | Phase 1 foundation |
-| **Database Schema & ORM Setup** | NOT STARTED | Proposed: PostgreSQL schema via Prisma ORM | None | Schema migration & DB client in Phase 1 |
-| **User Authentication & Session Management** | NOT STARTED | Proposed: NextAuth.js / Secure JWT session handling | None | Phase 1 auth engine |
-| **Role-Based Access Control (RBAC)** | NOT STARTED | Proposed: Patient, Doctor, Admin route & middleware guards | None | Phase 1 permissions |
+| **Project Master Specification (`BRAIN.md`)** | COMPLETED | Master architecture with monorepo separation (frontend & backend), safety guardrails | Manual schema & structural validation | Ongoing updates as subsequent phases are implemented |
+| **Progress Tracking System (`PROJECT_STATUS.md`)** | COMPLETED | Quantitative tracker with exact percentage metrics, phase checklists, bug table | Structural verification | Regular state updates per session |
+| **Implementation Log (`CHANGELOG.md`)** | COMPLETED | Chronological session logging schema with dated records | Format verified against execution logs | Incremental appending after each phase |
+| **Project Documentation & Blueprints (`docs/*`)** | COMPLETED | `ARCHITECTURE.md`, `DATABASE.md`, `API.md` documenting Express `/api/v1` contracts | Cross-reference integrity check | Verification against code implementation in Phase 2+ |
+| **Repository Setup & README (`README.md`)** | COMPLETED | Monorepo structure (`frontend/`, `backend/`, root scripts), setup guidance | Directory & git status verification | Documented setup and test instructions |
+| **Framework & App Bootstrap** | COMPLETED | Next.js 15.5.27 (frontend, port 3000) & Node.js/Express (backend, port 5000) | Root typecheck & Next.js production build passed | Full feature views in future phases |
+| **Design System & Global CSS Tokens** | COMPLETED | Centralized design tokens (`tokens.css`), responsive reset & components (`globals.css`) in `frontend/` | Verified in Next.js production bundle | Add complex UI components in Phase 2 |
+| **Database Schema & ORM Setup** | COMPLETED | PostgreSQL schema in `backend/prisma/` (`User`, `PatientProfile`, `DoctorProfile`, `DoctorCredential`) | `prisma migrate dev` applied (`20261012142151_init`), client generated | Add appointment/consultation models in Phase 3/4 |
+| **User Authentication & Session Management** | COMPLETED | Express backend auth (`/api/v1/auth`), bcrypt hashing, Jose HS256 JWT, HTTP-only cookies, rate limiting | 6 auth unit tests passed (bcrypt & JWT verify/reject) | External OAuth if needed in future |
+| **Role-Based Access Control (RBAC)** | COMPLETED | Server-side role assertions for PATIENT, DOCTOR, ADMIN, SUPER_ADMIN, ownership assertions | 9 RBAC ownership tests passed; 8 validation security tests passed | Dashboard UI views in Phase 2 |
+| **Backend Health Monitoring (`GET /api/v1/health`)** | COMPLETED | Dedicated health check endpoint distinguishing API process availability from DB availability | Supertest integration test passed against live DB (513ms) | Health telemetry dashboard in Phase 7 |
 | **Public Landing Page & Navigation** | NOT STARTED | Proposed: Responsive marketing UI, value proposition, quick search | None | Phase 2 implementation |
 | **Doctor Search & Specialty Filters** | NOT STARTED | Proposed: Query by specialty, availability, fee, rating | None | Phase 2 implementation |
 | **Doctor Public Profile Pages** | NOT STARTED | Proposed: Experience, credentials, verified badges, reviews | None | Phase 2 implementation |
@@ -52,8 +53,8 @@
 | **Doctor Credential Verification Portal** | NOT STARTED | Proposed: Admin license review, approve/reject workflow | None | Phase 7 implementation |
 | **Content Management for Disease/Medicine** | NOT STARTED | Proposed: Admin CRUD for medical libraries | None | Phase 7 implementation |
 | **Audit Logging & PHI Access Protection** | NOT STARTED | Proposed: Immutable access tracking for patient health records | None | Phase 7 implementation |
-| **Automated Test Suite (Unit & E2E)** | NOT STARTED | Proposed: Vitest / Jest unit tests + Playwright E2E | None | Phase 8 implementation |
-| **Production Build, Optimization & Deployment** | NOT STARTED | Proposed: Next.js production build, SEO metadata, cloud deployment | None | Phase 8 implementation |
+| **Automated Test Suite (Unit & E2E)** | NOT STARTED | Baseline unit test suite (24 backend tests) passing via Vitest; full E2E deferred | Vitest 24/24 unit tests passing | E2E Playwright tests in Phase 8 |
+| **Production Build, Optimization & Deployment** | NOT STARTED | Baseline Next.js production build verified; deployment pipeline deferred | `next build` static generation verified | Production deployment in Phase 8 |
 
 ---
 
@@ -70,14 +71,22 @@
 - [x] Creation of API Contract Specification (`docs/API.md`)
 - [x] Establishment of permanent working rules and safety protocols
 
-### Phase 1: Application Setup, Database, Authentication, and Roles
-- [ ] Initialize project with selected web framework and TypeScript
-- [ ] Establish design tokens and core vanilla CSS styling architecture
-- [ ] Configure database client (PostgreSQL + ORM) and baseline migration
-- [ ] Implement user schema (User, PatientProfile, DoctorProfile)
-- [ ] Implement secure authentication (login, registration, session cookies)
-- [ ] Implement Role-Based Access Control (RBAC) middleware for Patient, Doctor, and Admin
-- [ ] Verify auth workflows with unit/integration tests
+### Phase 1: Monorepo Setup, Frontend, Backend, Database, Authentication, and Roles
+- [x] Establish monorepo structure with independent `frontend/` and `backend/` applications
+- [x] Initialize Next.js 15 App Router frontend (React 19, strict TypeScript, Vanilla CSS design tokens)
+- [x] Initialize Node.js Express backend (`/api/v1`, Helmet, CORS with credentials, rate limiting)
+- [x] Build centralized API client in `frontend/src/lib/apiClient.ts` communicating with Express
+- [x] Implement backend health check endpoint (`GET /api/v1/health`) distinguishing API process from DB connectivity
+- [x] Configure PostgreSQL Prisma schema in `backend/prisma/schema.prisma` and generate client
+- [x] Execute baseline database migration (`20261012142151_init` applied to live Supabase PostgreSQL instance)
+- [x] Implement initial user and profile models (`User`, `PatientProfile`, `DoctorProfile`, `DoctorCredential`)
+- [x] Implement backend authentication (bcrypt password hashing, Jose HS256 JWT, HTTP-only session cookies)
+- [x] Implement Role-Based Access Control (RBAC) middleware for Patient, Doctor, Admin, and Super Admin
+- [x] Enforce public registration restrictions preventing assignment of privileged roles
+- [x] Enforce patient and doctor resource ownership protections
+- [x] Create frontend accessible auth forms and placeholder views (`/`, `/login`, `/register`, `/patient`, `/doctor`, `/admin`, `/unauthorized`)
+- [x] Verify backend auth, validation, RBAC, and health workflows with automated tests (24/24 passing)
+- [x] Verify frontend build and typecheck (`tsc --noEmit`, `next build` passed)
 
 ### Phase 2: Public Website, Doctor Search, Profiles, and Dashboards
 - [ ] Implement responsive public landing page with accessible navigation
@@ -139,12 +148,10 @@
 
 | Issue ID | Description | Severity | Reproduction Details | Resolution Status |
 |---|---|---|---|---|
-| *None* | No active bugs or blockers identified in Phase 0 | N/A | N/A | Closed |
+| **DB-01** | Local PostgreSQL database service is offline at `localhost:5432` | Medium (Environment Blocker) | Resolved: Connected live Supabase PostgreSQL pooler and executed migration `20261012142151_init`. | **RESOLVED** |
 
 ---
 
 ## Next Actions (Priority Order)
 
-1. Complete Phase 0 by verifying all documentation files (`CHANGELOG.md`, `README.md`, `docs/ARCHITECTURE.md`, `docs/DATABASE.md`, `docs/API.md`).
-2. Verify workspace consistency and ensure no application code has been generated prematurely.
-3. Submit Phase 0 completion report to the user and await explicit approval before initiating Phase 1.
+1. Await user review and authorization to proceed to **Phase 2: Public Website, Doctor Search, Profiles, and Dashboards**.

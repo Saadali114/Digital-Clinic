@@ -1,115 +1,139 @@
-# MediConnect — Planned API Contract & Endpoints Specification
+# MediConnect — Express Backend API Contract Specification
 
-> **Document Status**: Proposed API Blueprint (Unverified until Phase 1+ Implementation)  
+> **Document Status**: Finalized API Contract (`/api/v1` Express Backend)  
 > **Last Updated**: 2026-10-12  
-> **Protocol**: HTTPS REST & Server-Sent Events (SSE)
+> **Base URL**: `http://localhost:5000/api/v1`
 
 ---
 
-## 1. Authentication & Session Module (`/api/auth`)
+## 1. System & Health Endpoints
 
-| Endpoint | Method | Role | Description |
-|---|---|---|---|
-| `/api/auth/register` | `POST` | Public | Registers a new user (`PATIENT` or `DOCTOR`). Validates schema with Zod. |
-| `/api/auth/login` | `POST` | Public | Validates credentials, issues secure HTTP-only session cookie. |
-| `/api/auth/logout` | `POST` | Authenticated | Clears session cookie and invalidates server token. |
-| `/api/auth/session` | `GET` | Authenticated | Returns current authenticated user details and active role. |
+### `GET /api/v1/health`
+Checks API server and database availability.
 
----
-
-## 2. User & Profiles Module (`/api/users`)
-
-| Endpoint | Method | Role | Description |
-|---|---|---|---|
-| `/api/users/me` | `GET` | Authenticated | Fetches profile for current user (Patient or Doctor). |
-| `/api/users/patient-profile` | `PATCH` | Patient | Updates medical history, allergies, emergency contacts. |
-| `/api/users/doctor-profile` | `PATCH` | Doctor | Updates bio, consultation fee, specialties, clinic address. |
-| `/api/users/change-password` | `POST` | Authenticated | Changes password after validating old password. |
-
----
-
-## 3. Doctor Discovery & Public Directory (`/api/doctors`)
-
-| Endpoint | Method | Role | Description |
-|---|---|---|---|
-| `/api/doctors` | `GET` | Public | Paginated list of verified doctors. Filters: `specialty`, `feeMax`, `ratingMin`, `search`. |
-| `/api/doctors/:id` | `GET` | Public | Public profile for a verified doctor including specialties, bio, fee, reviews. |
-| `/api/doctors/:id/slots` | `GET` | Public | Available (unbooked) time slots for a specific doctor within a date range. |
-| `/api/specialties` | `GET` | Public | List of all medical specialties with doctor counts. |
-
----
-
-## 4. Scheduling & Appointments Module (`/api/appointments`)
-
-| Endpoint | Method | Role | Description |
-|---|---|---|---|
-| `/api/appointments` | `GET` | Authenticated | List appointments for current user. Filtered by role (Patient or Doctor). |
-| `/api/appointments` | `POST` | Patient | Books an appointment. Uses database row locks to prevent double-booking. |
-| `/api/appointments/:id` | `GET` | Patient / Doctor | Fetches details of a specific appointment. Strict ownership check. |
-| `/api/appointments/:id/status` | `PATCH` | Doctor / Patient | Updates status (`CONFIRMED`, `CANCELLED`). Enforces state machine rules. |
-| `/api/appointments/:id/reschedule` | `PATCH` | Patient / Doctor | Selects a new slot and updates appointment date. |
+- **Access**: Public
+- **Response Format** (Database Online):
+  ```json
+  {
+    "status": "ok",
+    "timestamp": "2026-10-12T19:00:00.000Z",
+    "services": {
+      "api": "healthy",
+      "database": "connected"
+    }
+  }
+  ```
+- **Response Format** (Database Offline / P1001):
+  ```json
+  {
+    "status": "degraded",
+    "timestamp": "2026-10-12T19:00:00.000Z",
+    "services": {
+      "api": "healthy",
+      "database": "disconnected"
+    },
+    "message": "Database is unreachable. API process is functioning."
+  }
+  ```
 
 ---
 
-## 5. Doctor Schedule Management (`/api/doctor/schedule`)
+## 2. Authentication & Session Module (`/api/v1/auth`)
 
-| Endpoint | Method | Role | Description |
-|---|---|---|---|
-| `/api/doctor/schedule/slots` | `GET` | Doctor | Lists all doctor slots (booked and available) within a date range. |
-| `/api/doctor/schedule/slots` | `POST` | Doctor | Creates single or recurring availability slots. |
-| `/api/doctor/schedule/slots/:id` | `DELETE` | Doctor | Removes an unbooked availability slot. |
+### `POST /api/v1/auth/register`
+Creates a new patient or doctor account with linked profile.
+
+- **Access**: Public (Rate-limited)
+- **Security Guardrail**: Role input is strictly restricted to `PATIENT` or `DOCTOR`. Any payload specifying `ADMIN` or `SUPER_ADMIN` is rejected with `400 Bad Request`.
+- **Request Body**:
+  ```json
+  {
+    "name": "Dr. Sarah Connor",
+    "email": "sarah@clinic.com",
+    "password": "SecurePassword123!",
+    "role": "DOCTOR",
+    "specialization": "Cardiology"
+  }
+  ```
+- **Response (201 Created)**:
+  - Sets HTTP-only cookie: `mediconnect_session`
+  ```json
+  {
+    "success": true,
+    "user": {
+      "id": "uuid",
+      "name": "Dr. Sarah Connor",
+      "email": "sarah@clinic.com",
+      "role": "DOCTOR",
+      "status": "ACTIVE"
+    }
+  }
+  ```
+
+### `POST /api/v1/auth/login`
+Authenticates user and issues HTTP-only session cookie.
+
+- **Access**: Public (Rate-limited)
+- **Security Guardrail**: Anti-enumeration error messages. Suspended accounts receive `403 Forbidden`.
+- **Request Body**:
+  ```json
+  {
+    "email": "sarah@clinic.com",
+    "password": "SecurePassword123!"
+  }
+  ```
+- **Response (200 OK)**:
+  - Sets HTTP-only cookie: `mediconnect_session`
+  ```json
+  {
+    "success": true,
+    "user": {
+      "id": "uuid",
+      "name": "Dr. Sarah Connor",
+      "email": "sarah@clinic.com",
+      "role": "DOCTOR",
+      "status": "ACTIVE"
+    }
+  }
+  ```
+
+### `POST /api/v1/auth/logout`
+Terminates current session and clears session cookie.
+
+- **Access**: Authenticated
+- **Response (200 OK)**: Clears cookie and returns `{ "success": true, "message": "Successfully logged out" }`
+
+### `GET /api/v1/auth/me`
+Retrieves current authenticated user and linked profile information.
+
+- **Access**: Authenticated (Patient, Doctor, Admin, Super Admin)
+- **Security Guardrail**: Users can only retrieve their own profile information (`assertPatientOwnership` / `assertDoctorOwnership`).
+- **Response (200 OK)**:
+  ```json
+  {
+    "success": true,
+    "user": {
+      "id": "uuid",
+      "name": "Dr. Sarah Connor",
+      "email": "sarah@clinic.com",
+      "role": "DOCTOR",
+      "status": "ACTIVE",
+      "doctorProfile": {
+        "id": "uuid",
+        "specialization": "Cardiology",
+        "verificationStatus": "PENDING"
+      }
+    }
+  }
+  ```
 
 ---
 
-## 6. Telehealth & Online Consultations (`/api/consultations`)
+## 3. Planned Endpoints (Future Phases)
 
-| Endpoint | Method | Role | Description |
-|---|---|---|---|
-| `/api/consultations/:appointmentId/token` | `POST` | Patient / Doctor | Generates authorized WebRTC room join token within 15 min of scheduled time. |
-| `/api/consultations/:appointmentId/start` | `POST` | Doctor | Marks session as `IN_PROGRESS`, records start timestamp. |
-| `/api/consultations/:appointmentId/complete` | `POST` | Doctor | Concludes session, saves doctor clinical notes and diagnosis summary. |
-| `/api/consultations/:appointmentId/prescription` | `POST` | Doctor | Creates prescription items attached to the consultation session. |
-| `/api/consultations/:appointmentId/summary` | `GET` | Patient / Doctor | Retrieves post-consultation summary and prescriptions. |
-
----
-
-## 7. Medical Information Library (`/api/library`)
-
-| Endpoint | Method | Role | Description |
-|---|---|---|---|
-| `/api/library/diseases` | `GET` | Public | Searchable and indexed list of disease articles. |
-| `/api/library/diseases/:slug` | `GET` | Public | Complete article details (symptoms, causes, risk factors, prevention). |
-| `/api/library/medicines` | `GET` | Public | Searchable list of pharmaceuticals by generic and brand name. |
-| `/api/library/medicines/:slug` | `GET` | Public | Complete medicine details (indications, dosage guidance, contraindications). |
-
----
-
-## 8. AI Health Assistant (`/api/ai`)
-
-| Endpoint | Method | Role | Description |
-|---|---|---|---|
-| `/api/ai/chat` | `POST` | Public / Patient | Streams AI triage response via SSE. Enforces medical safety prompt guardrails. |
-| `/api/ai/triage-check` | `POST` | Public / Patient | Analyzes symptoms and flags emergency red-flags; returns recommended specialty. |
-
----
-
-## 9. Administration & Operations (`/api/admin`)
-
-| Endpoint | Method | Role | Description |
-|---|---|---|---|
-| `/api/admin/doctors/pending` | `GET` | Admin | Lists doctors awaiting credential verification. |
-| `/api/admin/doctors/:id/verify` | `POST` | Admin | Approves or rejects doctor license with review notes. |
-| `/api/admin/users/:id/status` | `PATCH` | Admin | Updates user status (`ACTIVE`, `SUSPENDED`). |
-| `/api/admin/library/diseases` | `POST/PUT/DEL` | Admin | CRUD operations on disease articles. |
-| `/api/admin/library/medicines` | `POST/PUT/DEL` | Admin | CRUD operations on medicine articles. |
-| `/api/admin/audit-logs` | `GET` | Admin | Paginated immutable audit trail with filters by user, action, and date. |
-
----
-
-## 10. Notifications Module (`/api/notifications`)
-
-| Endpoint | Method | Role | Description |
-|---|---|---|---|
-| `/api/notifications` | `GET` | Authenticated | Lists in-app notifications for the logged-in user. |
-| `/api/notifications/:id/read` | `PATCH` | Authenticated | Marks a specific notification as read. |
-| `/api/notifications/read-all` | `POST` | Authenticated | Marks all user notifications as read. |
+- **Phase 2**: `/api/v1/doctors`, `/api/v1/doctors/:id`, `/api/v1/specialties`
+- **Phase 3**: `/api/v1/appointments`, `/api/v1/doctor/schedule`
+- **Phase 4**: `/api/v1/consultations/:id/token`, `/api/v1/consultations/:id/notes`
+- **Phase 5**: `/api/v1/library/diseases`, `/api/v1/library/medicines`
+- **Phase 6**: `/api/v1/ai/triage`, `/api/v1/ai/chat`
+- **Phase 7**: `/api/v1/admin/doctors/:id/verify`, `/api/v1/admin/audit-logs`

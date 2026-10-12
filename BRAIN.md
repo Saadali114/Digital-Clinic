@@ -1,8 +1,8 @@
 # MediConnect — Project Brain & Architectural Source of Truth
 
-> **Document Status**: Proposed Architecture & Master Source of Truth (Phase 0)  
+> **Document Status**: Active Implementation Source of Truth (Phase 1 Baseline)  
 > **Last Updated**: 2026-10-12  
-> **Application Implementation State**: Uninitialized (Foundation & Documentation Phase)
+> **Application Implementation State**: Phase 1 Foundation Verified (Next.js 15.5.27, React 19, TypeScript strict, Vanilla CSS tokens, Jose JWT sessions, Bcryptjs, Prisma Client 6.19.3)
 
 ---
 
@@ -67,17 +67,17 @@ Modern outpatient healthcare suffers from significant fragmentation:
 
 ## 5. Technology Stack and Architecture Justification
 
-*(Note: Proposed stack for full application implementation starting in Phase 1)*
+*(Note: Finalized Architecture: Dedicated Express Backend + Next.js Frontend Monorepo)*
 
-| Layer | Chosen Technology | Justification |
-|---|---|---|
-| **Framework / Runtime** | **Next.js (App Router, React 19, TypeScript)** | Full-stack server and client capabilities, React Server Components for SEO-critical doctor profiles and medical libraries, unified API route handlers, strong typing across client and server. |
-| **Styling & UI Design** | **Modern Vanilla CSS / Design Tokens (CSS Modules)** | Maximum layout flexibility, zero external CSS runtime overhead, adherence to custom design tokens (typography, colors, elevation) without third-party framework lock-in. |
-| **Database** | **PostgreSQL (via Prisma ORM / Supabase)** | Relational data integrity is non-negotiable for medical scheduling, user permissions, relational foreign keys (Doctor <-> Slots <-> Appointments), and transactional booking locks. |
-| **Authentication** | **NextAuth.js (Auth.js) / Supabase Auth** | Standardized session management, JWT/Database sessions, bcrypt/Argon2 password hashing, secure HTTP-only cookies, role-based middleware guards. |
-| **Video / Realtime** | **WebRTC + WebSockets (Daily.co or Socket.io signaling)** | Sub-second peer-to-peer latency, browser native compatibility, end-to-end media encryption suitable for telehealth compliance. |
-| **AI Assistant** | **Vercel AI SDK + OpenAI GPT-4o / Anthropic Claude / Gemini API** | Streaming conversational responses, deterministic system prompt guardrails, structured JSON outputs for symptom categorization. |
-| **Validation** | **Zod** | End-to-end runtime type safety across API boundaries, forms, and environment variables. |
+| Layer | Chosen Technology | Version | Implementation Details & Justification |
+|---|---|---|---|
+| **Frontend Framework** | **Next.js (App Router, React 19, TypeScript)** | `next@15.5.27`, `react@19.0.0`, `typescript@5.7.3` | Client presentation tier in `frontend/`. Server and Client Components, Vanilla CSS design tokens, centralized API client calling Express backend via `NEXT_PUBLIC_API_URL`. Strictly no direct DB access. |
+| **Backend Framework** | **Node.js, Express, TypeScript** | `express@4.21.2`, `node@24`, `typescript@5.7.3` | Dedicated REST API application in `backend/`. Versioned `/api/v1` routes, Helmet, CORS with explicit frontend origin, rate limiting, centralized error handling. |
+| **Styling & UI Design** | **Modern Vanilla CSS / Design Tokens** | Native CSS3 | Centralized design tokens (`frontend/src/styles/tokens.css`) defining clinical teal/slate hierarchy, responsive typography, spacing scale, accessible inputs, cards, and role badges. |
+| **Database & ORM** | **PostgreSQL (via Prisma ORM)** | `prisma@6.19.3`, `@prisma/client@6.19.3` | Resides exclusively in `backend/prisma/schema.prisma`. Schema includes `User`, `PatientProfile`, `DoctorProfile`, `DoctorCredential`. |
+| **Authentication & Sessions** | **Jose HS256 JWT + Bcryptjs (Server-Side Cookies)** | `jose@5.9.6`, `bcryptjs@2.4.3` | Implemented in Express backend. Secure HTTP-only cookies (`mediconnect_session`), salted 12-round bcrypt password hashing, anti-enumeration defenses, rate-limited auth endpoints. |
+| **Validation** | **Zod** | `zod@3.24.2` | Runtime schema validation on backend request payloads. Public registration strictly allows only `PATIENT` or `DOCTOR`. |
+| **Testing** | **Vitest** | `vitest@3.2.7` | High-speed unit & integration test suites for auth, RBAC ownership, and validation security. |
 
 ---
 
@@ -85,31 +85,25 @@ Modern outpatient healthcare suffers from significant fragmentation:
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                         Presentation Layer                               │
-│  Patient Portal  │  Doctor Workspace  │  Admin Console  │  Public Hub    │
-│  (Next.js App Router, React Server Components, Responsive Client UI)     │
+│                         Presentation Layer (Frontend)                    │
+│                 Next.js App Router (Port 3000 / Dynamic Port)            │
+│  Patient Portal  │  Doctor Workspace  │  Admin Console  │  Public Shell  │
+│  - Centralized API Client (apiClient.ts) using credentials: 'include'    │
 └────────────────────────────────────┬─────────────────────────────────────┘
-                                     │ HTTPS / WSS
+                                     │ HTTPS / HTTP REST (/api/v1/*)
 ┌────────────────────────────────────▼─────────────────────────────────────┐
-│                      Application & Security Layer                        │
-│  - Middleware: Authentication & Role-Based Access Control (RBAC)         │
-│  - API Route Handlers (/api/auth, /api/appointments, /api/ai, etc.)      │
-│  - Zod Request Validation & Sanitization                                 │
-│  - Rate Limiting & Sensitive Data Masking                                │
-└──────────────────┬─────────────────┬─────────────────┬───────────────────┘
-                   │                 │                 │
-┌──────────────────▼──────┐ ┌────────▼───────┐ ┌───────▼───────────────────┐
-│     Domain Services     │ │  AI Assistant  │ │    Realtime Service      │
-│ - Appointment Manager   │ │ - Triage Logic │ │ - WebRTC Signaling       │
-│ - Doctor Schedule Engine│ │ - Prompt Guard │ │ - Room State & Tokens    │
-│ - Medical Library Query │ │ - Disclaimers  │ │ - Active Participant Mgmt│
-└──────────────────┬──────┘ └────────┬───────┘ └───────┬───────────────────┘
-                   │                 │                 │
-┌──────────────────▼─────────────────▼─────────────────▼───────────────────┐
+│                    Dedicated API Server (Express Backend)                │
+│                              Port 5000 (Default)                         │
+│  - Security: Helmet, CORS (Explicit allowlist), Rate Limiting            │
+│  - Middleware: Auth Session Cookie Guard & Role-Based Access Control     │
+│  - Versioned Routers: /api/v1/auth, /api/v1/health, /api/v1/users        │
+│  - Zod Request Validation & Centralized Error Handler                    │
+└────────────────────────────────────┬─────────────────────────────────────┘
+                                     │ Prisma Client (TCP Pool)
+┌────────────────────────────────────▼─────────────────────────────────────┐
 │                    Persistence & Infrastructure Layer                    │
-│  - PostgreSQL (Prisma ORM): Relational DB with ACID transactions         │
-│  - Audit Logs & Structured Telemetry                                     │
-│  - External Provider APIs (Video Signaling, LLM Gateway, Mail/SMS)       │
+│  - PostgreSQL (Prisma ORM in backend/prisma/schema.prisma)               │
+│  - Initial Models: User, PatientProfile, DoctorProfile, DoctorCredential │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -118,46 +112,41 @@ Modern outpatient healthcare suffers from significant fragmentation:
 ## 7. Proposed Folder Structure
 
 ```
-digital-clinic/
-├── .git/
-├── docs/                               # Architectural & specification documents
-│   ├── ARCHITECTURE.md                 # System components & data flow
-│   ├── DATABASE.md                     # Data models, schema & relations
-│   └── API.md                          # API contract & endpoints
-├── src/                                # Source code (To be initialized in Phase 1)
-│   ├── app/                            # Next.js App Router pages & routes
-│   │   ├── (auth)/                     # Auth routes (login, register, forgot-password)
-│   │   ├── (patient)/                  # Patient dashboard, bookings, history
-│   │   ├── (doctor)/                   # Doctor schedule, consultations, patient list
-│   │   ├── (admin)/                    # Admin verification & management
-│   │   ├── api/                        # REST & Streaming endpoints
-│   │   ├── consultation/[id]/          # WebRTC video consultation room
-│   │   ├── diseases/                   # Public disease encyclopedia
-│   │   ├── medicines/                  # Public medicine library
-│   │   ├── doctors/                    # Doctor directory & profile pages
-│   │   ├── page.tsx                    # Landing page
-│   │   └── layout.tsx                  # Global layout & metadata
-│   ├── components/                     # Reusable UI components
-│   │   ├── ui/                         # Buttons, inputs, modals, cards, badges
-│   │   ├── layout/                     # Header, footer, sidebar, navigation
-│   │   ├── consultations/              # Video controls, stream grids, chat
-│   │   ├── ai-assistant/               # Chat drawer, disclaimer banner, message bubbles
-│   │   └── doctors/                    # Filter cards, booking calendar, slot picker
-│   ├── lib/                            # Shared utilities and singleton instances
-│   │   ├── db.ts                       # Prisma client or database connection
-│   │   ├── auth.ts                     # Authentication configuration & session helpers
-│   │   ├── ai.ts                       # LLM client & prompt templates
-│   │   ├── validations.ts              # Zod schemas
-│   │   └── utils.ts                    # Formatters, date helpers, classnames
-│   ├── styles/                         # Global styles & design system tokens
-│   │   ├── tokens.css                  # Color palettes, typography, spacing, shadows
-│   │   └── globals.css                 # Base CSS reset & standard utilities
-│   └── types/                          # Shared TypeScript interfaces & types
-├── .env.example                        # Template for environment configuration
+Digital-Clinic/
+├── frontend/                           # Next.js App Router presentation tier
+│   ├── src/
+│   │   ├── app/                        # Pages: /, /login, /register, /patient, /doctor, /admin
+│   │   ├── components/                 # Header, Footer, UI components
+│   │   ├── lib/                        # Centralized Express API client (apiClient.ts)
+│   │   ├── styles/                     # Design tokens (tokens.css) & global styles (globals.css)
+│   │   └── types/                      # Frontend view models & TypeScript contracts
+│   ├── public/                         # Public static assets
+│   ├── package.json                    # Frontend package dependencies
+│   ├── tsconfig.json                   # Strict TypeScript configuration
+│   └── .env.example                    # NEXT_PUBLIC_API_URL=http://localhost:5000/api/v1
+├── backend/                            # Node.js + Express REST API tier
+│   ├── src/
+│   │   ├── config/                     # Environment config & database client
+│   │   ├── middleware/                 # Auth, RBAC, error handler, rate limit
+│   │   ├── modules/                    # Feature modules (auth, health, users)
+│   │   ├── routes/                     # Express router mounting /api/v1/*
+│   │   ├── services/                   # Business logic & Prisma access
+│   │   ├── utils/                      # Password hashing, JWT signing
+│   │   ├── app.ts                      # Express application setup
+│   │   └── server.ts                   # Server startup & port listener
+│   ├── prisma/
+│   │   └── schema.prisma               # PostgreSQL models & migrations
+│   ├── tests/                          # Backend unit & integration tests
+│   ├── package.json                    # Backend package dependencies
+│   ├── tsconfig.json                   # Strict TypeScript configuration
+│   └── .env.example                    # PORT, CORS_ORIGIN, DATABASE_URL, AUTH_SECRET
+├── docs/                               # Architecture, Database & API specifications
 ├── BRAIN.md                            # Primary source of truth & architectural log
 ├── PROJECT_STATUS.md                   # Real-time feature checklist & progress tracker
 ├── CHANGELOG.md                        # Implementation log & session records
-└── README.md                           # Project onboarding & setup instructions
+├── README.md                           # Monorepo onboarding & setup instructions
+├── .gitignore                          # Root ignore file
+└── package.json                        # Monorepo root scripts (dev, test, build)
 ```
 
 ---
@@ -313,7 +302,8 @@ Phase 8: Testing, Deployment & Final Documentation
 ---
 
 ## 17. Known Limitations and Unresolved Decisions
-
+ 
+- **Database Migrations**: Baseline migration `20261012142151_init` successfully applied to live Supabase PostgreSQL database. Tables `User`, `PatientProfile`, `DoctorProfile`, `DoctorCredential` are synchronized.
 - **Video Architecture**: Decision pending between a managed WebRTC provider (e.g., Daily.co / LiveKit) versus a custom self-hosted WebSockets signaling server.
 - **Payment Processing**: Payment integration is deferred to post-Phase 8 to focus on core clinical and scheduling workflows.
 - **Medical Content Sourcing**: Disease and medicine datasets will initially be seeded with verified medical editorial samples; external clinical API integration (e.g., RxNorm, ICD-10) is slated for future phases.
